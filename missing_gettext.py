@@ -10,12 +10,15 @@
 # TODO: get ride of this.
 # pylint: disable=W9903
 
+import re
+
 try:
     from logilab import astng
     from logilab.astng.node_classes import *
 except ImportError:
     import astroid
     from astroid.node_classes import *
+    from astroid.scoped_nodes import FunctionDef
 
 try:
     from pylint.interfaces import IAstroidChecker
@@ -177,6 +180,21 @@ def _is_path(text):
 
     return result
 
+def _guess_string_is_localisable(text):
+    if not text or len(text) == 0:
+        return False
+
+    return (
+        # If has a space or
+        ' ' in text or (
+            # First char is a letter and upper case and
+            re.match('[A-Z]', text[0]) is not None and
+            # the rest of the string is not uppercase and
+            text[1:].lower() == text[1:] and
+            # it does not contain some special chars
+            re.match('[\-_/]', text) is None
+        )
+    )
 
 class MissingGettextChecker(BaseChecker):
 
@@ -276,7 +294,7 @@ class MissingGettextChecker(BaseChecker):
                         'date_hierarchy'])),
 
             # Just a random doc-string-esque string in the code
-            (Discard, lambda curr_node, node: curr_node.value == node),
+            (Expr, lambda curr_node, node: curr_node.value == node),
 
             # X(attrs={'class': 'somecssclass', 'maxlength': '20'})
             (Keyword,
@@ -291,7 +309,7 @@ class MissingGettextChecker(BaseChecker):
             (Keyword,
              lambda curr_node,
              node: (curr_node.arg == 'attrs'
-                    and isinstance(curr_node.value, CallFunc)
+                    and isinstance(curr_node.value, Call)
                     and hasattr(curr_node.value.func, 'name')
                     and curr_node.value.func.name == 'dict')),
             # x = CharField(default='xxx', related_name='tickets') etc.
@@ -316,21 +334,13 @@ class MissingGettextChecker(BaseChecker):
             (Compare, lambda curr_node, node: node == curr_node.left),
 
             # Try to exclude queryset.extra(something=[..., 'some sql',...]
-            (CallFunc,
+            (Call,
              lambda curr_node,
              node: (curr_node.func.attrname in ['extra']
                     and any(is_child_node(node, x) for x in curr_node.args))),
 
-            # Queryset functions, queryset.order_by('shouldignore')
-            (CallFunc,
-             lambda curr_node,
-             node: (isinstance(curr_node.func, Getattr)
-                    and curr_node.func.attrname in [
-                    'has_key', 'pop', 'order_by', 'strftime', 'strptime',
-                    'get', 'select_related', 'values', 'filter',
-                    'values_list'])),
             # logging.info('shouldignore')
-            (CallFunc,
+            (Call,
              lambda curr_node,
              node: curr_node.func.expr.name in ['logging']),
 
@@ -339,22 +349,35 @@ class MissingGettextChecker(BaseChecker):
             # HttpResponseRedirect('/some/url/shouldnt/care')
             # first is function name, 2nd is the position the string must be
             # in (none to mean don't care)
-            (CallFunc,
+            (Call,
              lambda curr_node,
              node: (curr_node.func.name in ['hasattr', 'getattr']
                     and curr_node.args[1] == node)),
-            (CallFunc,
+            (Call,
              lambda curr_node,
              node: (curr_node.func.name in [
                     'HttpResponseRedirect', 'HttpResponse'])),
-            (CallFunc,
+            (Call,
              lambda curr_node,
              node: (curr_node.func.name == 'set_cookie'
                     and curr_node.args[0] == node)),
-            (CallFunc,
+
+            # Ingore everything in these classes
+            (Call,
              lambda curr_node,
-             node: (curr_node.func.name in ['ForeignKey', 'OneToOneField']
-                    and curr_node.args[0] == node)),
+             node: (
+                 # Functions may have name or attrname
+                 getattr(curr_node.func, 'attrname', getattr(curr_node.func, 'name', None)) in
+                 ['ForeignKey', 'ManyToManyField', 'OneToOneField', 'Choices']
+                )
+            ),
+
+            # Ingore everything in these functions:
+            (FunctionDef,
+             lambda curr_node,
+             node: (curr_node.name in ['__str__', 'has_key', 'pop', 'order_by', 'strftime', 'strptime',
+                    'get', 'select_related', 'values', 'filter',
+                    'values_list'])),
         ]
 
         string_ok = False
@@ -373,7 +396,7 @@ class MissingGettextChecker(BaseChecker):
                     print(repr(curr_node))
                     print(repr(curr_node.as_string()))
                     print(curr_node.repr_tree())
-                if isinstance(curr_node, CallFunc):
+                if isinstance(curr_node, Call):
                     if (hasattr(curr_node, 'func')
                             and hasattr(curr_node.func, 'name')):
                         if (curr_node.func.name in [
@@ -394,7 +417,6 @@ class MissingGettextChecker(BaseChecker):
                                 break
                         except AttributeError:
                             pass
-
                 curr_node = curr_node.parent
 
         except Exception as error:  # pylint: disable=W0703
@@ -405,9 +427,10 @@ class MissingGettextChecker(BaseChecker):
             pdb.set_trace()
 
         if not string_ok:
-            # we've gotten to the top of the code tree / file level and we
-            # haven't been whitelisted, so add an error here
-            self.add_message('W9903', node=node, args=node.value)
+            if _guess_string_is_localisable(node.value):
+                # we've gotten to the top of the code tree / file level and we
+                # haven't been whitelisted, so add an error here
+                self.add_message('W9903', node=node, args=node.value)
 
 
 def register(linter):
