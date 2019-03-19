@@ -184,13 +184,27 @@ def _guess_string_is_localisable(text):
     if not text or len(text) == 0:
         return False
 
+    lower = text.lower()
+
+    # Ignore some SQL and other strings
+    if (
+        ('select' in lower and 'from' in lower) or
+        ('select' in lower and 'join' in lower) or
+        ('update' in lower and 'set' in lower) or
+        ('left join' in lower) or
+        ('inner join' in lower) or
+        ('max-age=' in lower)
+    ):
+        return False
+
     return (
         # If has a space or
         ' ' in text or (
+            len(text) > 1 and
             # First char is a letter and upper case and
             re.match('[A-Z]', text[0]) is not None and
             # the rest of the string is not uppercase and
-            text[1:].lower() == text[1:] and
+            lower[1:] == text[1:] and
             # it does not contain some special chars
             re.match('[\-_/]', text) is None
         )
