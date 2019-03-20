@@ -356,8 +356,7 @@ class MissingGettextChecker(BaseChecker):
             # logging.info('shouldignore')
             (Call,
              lambda curr_node,
-             node: curr_node.func.expr.name in ['logging']),
-
+             node: curr_node.func.expr.name in ['logging', 'logger']),
 
             # hasattr(..., 'should ignore')
             # HttpResponseRedirect('/some/url/shouldnt/care')
