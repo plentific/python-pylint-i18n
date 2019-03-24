@@ -415,6 +415,7 @@ class MissingGettextChecker(BaseChecker):
                         if (curr_node.func.name in [
                                 '_', 'ungettext', 'ungettext_lazy',
                                 'gettext_noop', '_noop', '_n',
+                                '_lazy', 'gettext_lazy'
                             ]):
                             # we're in a _() call
                             string_ok = True
