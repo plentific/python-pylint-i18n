@@ -40,6 +40,9 @@ import string
 import os.path
 
 
+bad_format_regex = re.compile('{[0-9]*}')
+
+
 def is_number(text):
     """Returns True if this text is a representation of a number"""
     try:
@@ -424,7 +427,7 @@ class MissingGettextChecker(BaseChecker):
                             ]):
                             # we're in a _() call
                             string_ok = True
-                            if '{}' in node.value:
+                            if bad_format_regex.search(node.value):
                                 self.add_message('W9904', node=node, args=node.value)
                             break
 
