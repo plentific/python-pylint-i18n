@@ -40,6 +40,9 @@ import string
 import os.path
 
 
+bad_format_regex = re.compile('{[0-9]*}')
+
+
 def is_number(text):
     """Returns True if this text is a representation of a number"""
     try:
@@ -221,7 +224,12 @@ class MissingGettextChecker(BaseChecker):
     name = 'missing_gettext'
     msgs = {
         'W9903': ('non-gettext-ed string %r',
+                  'non-gettext-ed-string',
                   "There is a raw string that's not passed through gettext"),
+        'W9904': ('gettext-ed string with positional args %r',
+                  'bad-gettext-ed-string',
+                  "There is a gettext-ed string using positional args for formatting"),
+        # TODO: do not allow old style formatting, or find a linter that does this.
     }
 
     # this is important so that your checker is executed before others
@@ -419,6 +427,8 @@ class MissingGettextChecker(BaseChecker):
                             ]):
                             # we're in a _() call
                             string_ok = True
+                            if bad_format_regex.search(node.value):
+                                self.add_message('W9904', node=node, args=node.value)
                             break
 
                 # Look at our whitelist
