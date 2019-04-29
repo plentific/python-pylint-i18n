@@ -402,6 +402,7 @@ class MissingGettextChecker(BaseChecker):
         ]
 
         string_ok = False
+        skipped_translation = False
 
         debug = False
         # debug = True
@@ -424,11 +425,12 @@ class MissingGettextChecker(BaseChecker):
                                 '_', 'ungettext', 'ungettext_lazy',
                                 'gettext_noop', '_noop', '_n',
                                 '_lazy', 'gettext_lazy'
-                            ]):
+                        ]):
+                            if curr_node.func.name in ['gettext_noop', '_noop', '_n']:
+                                skipped_translation = True
                             # we're in a _() call
                             string_ok = True
-                            if bad_format_regex.search(node.value):
-                                self.add_message('W9904', node=node, args=node.value)
+
                             break
 
                 # Look at our whitelist
@@ -457,6 +459,9 @@ class MissingGettextChecker(BaseChecker):
                 # we've gotten to the top of the code tree / file level and we
                 # haven't been whitelisted, so add an error here
                 self.add_message('W9903', node=node, args=node.value)
+        else:
+            if bad_format_regex.search(node.value) and not skipped_translation:
+                self.add_message('W9904', node=node, args=node.value)
 
 
 def register(linter):
