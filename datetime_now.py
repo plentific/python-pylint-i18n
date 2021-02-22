@@ -8,12 +8,12 @@ class DateTimeNowChecker(BaseChecker):
 
     DATETIME_NOW = 'datetime-now'
     DATETIME_NOW_MESSAGE = (
-        'datetime.now() from datetime is not timezone-aware. '
-        'Please use timezone.now() from django.utils instead.'
+        'In %s: datetime.now from datetime is not timezone-aware. '
+        'Please use timezone.now from django.utils instead.'
     )
     DATETIME_NOW_HELP = (
-        'datetime.now() from datetime is not timezone-aware. '
-        'timezone.now() from django.utils should be used instead.'
+        'datetime.now from datetime is not timezone-aware. '
+        'timezone.now from django.utils should be used instead.'
     )
 
     name = 'datetime_now'
@@ -31,13 +31,13 @@ class DateTimeNowChecker(BaseChecker):
         if not hasattr(node, 'attrname') or node.attrname != 'now':
             return
 
-        # Handles: datetime.now()
-        if hasattr(node.expr, 'name') and node.expr.name == 'datetime':
-            self.add_message('datetime-now', node=node)
+        # Covered cases: datetime.now, datetime.datetime.now
+        is_datetime = hasattr(node.expr, 'name') and node.expr.name == 'datetime'
+        is_datetime_datetime = hasattr(node.expr, 'attrname') and node.expr.attrname == 'datetime'
 
-        # Handles: datetime.datetime.now()
-        if hasattr(node.expr, 'attrname') and node.expr.attrname == 'datetime':
-            self.add_message('datetime-now', node=node)
+        if is_datetime or is_datetime_datetime:
+            source_string = (node.parent or node).as_string()
+            self.add_message('datetime-now', node=node, args=(source_string,))
 
 
 def register(linter):
