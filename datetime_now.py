@@ -1,8 +1,4 @@
-try:
-    from pylint.interfaces import IAstroidChecker
-except ImportError:
-    from pylint.interfaces import IASTNGChecker as IAstroidChecker
-
+from pylint.interfaces import IAstroidChecker
 from pylint.checkers import BaseChecker
 
 
@@ -10,23 +6,40 @@ class DateTimeNowChecker(BaseChecker):
 
     __implements__ = IAstroidChecker  # pylint: disable=F0220
 
+    DATETIME_NOW = 'datetime-now'
+    DATETIME_NOW_MESSAGE = (
+        'datetime.now() from datetime is not timezone-aware. '
+        'Please use timezone.now() from django.utils instead.'
+    )
+    DATETIME_NOW_HELP = (
+        'datetime.now() from datetime is not timezone-aware. '
+        'timezone.now() from django.utils should be used instead.'
+    )
+
     name = 'datetime_now'
     msgs = {
-        'R0402': ('Do not use datetime.now() %s',
-                  'datetime-now',
-                  "datetime.now() is not allowed"),
-        }
+        'R0402': (
+            DATETIME_NOW_MESSAGE,
+            DATETIME_NOW,
+            DATETIME_NOW_HELP,
+        ),
+    }
 
     priority = -1
 
     def visit_attribute(self, node):
-        is_datetime_module_n_class = (node.func.value.attr == 'datetime'
-                                      and node.func.value.value.id == 'datetime')
+        if not hasattr(node, 'attrname') or node.attrname != 'now':
+            return
 
-        if is_datetime_module_n_class and node.func.attr in 'now':
-            self.add_message('R0402', node=node, args=node.func.value)
+        # Handles: datetime.now()
+        if hasattr(node.expr, 'name') and node.expr.name == 'datetime':
+            self.add_message('datetime-now', node=node)
+
+        # Handles: datetime.datetime.now()
+        if hasattr(node.expr, 'attrname') and node.expr.attrname == 'datetime':
+            self.add_message('datetime-now', node=node)
 
 
 def register(linter):
-    """required method to auto register this checker"""
     linter.register_checker(DateTimeNowChecker(linter))
+
