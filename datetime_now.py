@@ -2,6 +2,14 @@ from pylint.interfaces import IAstroidChecker
 from pylint.checkers import BaseChecker
 
 
+def preceded_by(node, string):
+    pred = node.expr if hasattr(node, 'expr') else None
+    return pred and (
+        (hasattr(pred, 'name') and pred.name == string) or
+        (hasattr(pred, 'attrname') and pred.attrname == string)
+    )
+
+
 class DateTimeNowChecker(BaseChecker):
 
     __implements__ = IAstroidChecker  # pylint: disable=F0220
@@ -31,11 +39,7 @@ class DateTimeNowChecker(BaseChecker):
         if not hasattr(node, 'attrname') or node.attrname != 'now':
             return
 
-        # Covered cases: datetime.now, datetime.datetime.now
-        is_datetime = hasattr(node.expr, 'name') and node.expr.name == 'datetime'
-        is_datetime_datetime = hasattr(node.expr, 'attrname') and node.expr.attrname == 'datetime'
-
-        if is_datetime or is_datetime_datetime:
+        if preceded_by(node, 'datetime') and not preceded_by(node.expr, 'timezone'):
             source_string = (node.parent or node).as_string()
             self.add_message('datetime-now', node=node, args=(source_string,))
 
