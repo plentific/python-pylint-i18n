@@ -1,3 +1,5 @@
+# pylint: disable=W0001
+
 from pylint.interfaces import IAstroidChecker
 from pylint.checkers import BaseChecker
 
@@ -26,8 +28,7 @@ class DateTimeNowChecker(BaseChecker):
 
     name = 'datetime_now'
     msgs = {
-        # defining a custom code so we ensure no conflicts in the future.
-        'PLT0001': (
+        'W0001': (
             DATETIME_NOW_MESSAGE,
             DATETIME_NOW,
             DATETIME_NOW_HELP,
