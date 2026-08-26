@@ -1,0 +1,61 @@
+name: "Version check"
+
+# Every PR to master cuts a release, so every PR must bump [project] version
+# to a value that has never been tagged. See ADR-0035.
+
+on:
+  pull_request:
+    branches:
+      - master
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+env:
+  # Tag names in this repository are the declared version with this prefix.
+  TAG_PREFIX: ""
+
+jobs:
+  version-bumped:
+    name: Version bumped to an unused version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compare the declared version against the base branch
+        run: |
+          set -euo pipefail
+
+          pip install --quiet packaging
+
+          read_version() {
+            python3 -c 'import sys, tomllib; print(tomllib.loads(sys.stdin.read())["project"]["version"])'
+          }
+
+          head_version="$(read_version < pyproject.toml)"
+          base_version="$(git show "origin/${{ github.base_ref }}:pyproject.toml" | read_version)"
+
+          if [ "$head_version" = "$base_version" ]; then
+            echo "::error file=pyproject.toml::This PR does not bump the version. pyproject.toml still declares ${head_version}, the same as ${{ github.base_ref }}. Merging cuts a release, so [project] version must be raised to a value that has not been tagged."
+            exit 1
+          fi
+
+          if ! python3 -c "
+          from packaging.version import Version
+          import sys
+          sys.exit(0 if Version('${head_version}') > Version('${base_version}') else 1)
+          "; then
+            echo "::error file=pyproject.toml::Version ${head_version} is not higher than ${base_version} on ${{ github.base_ref }}. Releases only move forward."
+            exit 1
+          fi
+
+          tag="${TAG_PREFIX}${head_version}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "::error file=pyproject.toml::Tag ${tag} already exists. Pick a version that has not been released."
+            exit 1
+          fi
+
+          echo "Version bumped ${base_version} -> ${head_version}. Tag ${tag} is free and will be created on merge."

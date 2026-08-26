@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# The distribution is "pylint-i18n" even though the repository is
+# "python-pylint-i18n". Consumers depend on the distribution name, so it must
+# not be renamed to match the repository.
+name = "pylint-i18n"
+# Equals the git tag being cut. See ADR-0035.
+version = "1.1.2"
+description = "Find strings in your code that should be passed through gettext."
+requires-python = ">=3.9"
+authors = [{ name = "Rory McCann", email = "rory@technomancy.org" }]
+dependencies = ["pylint>=1"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Topic :: Software Development :: Internationalization",
+    "Topic :: Software Development :: Localization",
+    "Topic :: Software Development :: Quality Assurance",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+]
+
+[project.urls]
+Homepage = "http://www.technomancy.org/python/pylint-i18n-lint-checker/"
+Source = "https://github.com/plentific/python-pylint-i18n"
+
+[tool.setuptools]
+# A flat module, not a package. datetime_now.py and tests.py sit alongside it
+# in the repository and were never shipped; that is unchanged.
+py-modules = ["missing_gettext"]
