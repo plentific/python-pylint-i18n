@@ -31,17 +31,34 @@ jobs:
 
           pip install --quiet packaging
 
+          # Prints the declared version, or nothing when the file has no
+          # [project] table (a repository not yet migrated).
           read_version() {
-            python3 -c 'import sys, tomllib; print(tomllib.loads(sys.stdin.read())["project"]["version"])'
+            python3 -c '
+          import sys, tomllib
+          try:
+              print(tomllib.loads(sys.stdin.read())["project"]["version"])
+          except (KeyError, tomllib.TOMLDecodeError):
+              pass
+          '
           }
 
           head_version="$(read_version < pyproject.toml)"
 
-          # A PR that introduces pyproject.toml has no base version to compare
-          # against, so only the tag check applies to it.
+          if [ -z "$head_version" ]; then
+            echo "::error file=pyproject.toml::pyproject.toml declares no [project] version."
+            exit 1
+          fi
+
+          # A PR that introduces the packaging metadata has no base version to
+          # compare against, either because the base branch has no
+          # pyproject.toml or because its one carries only tool config.
+          base_version=""
           if git cat-file -e "origin/${{ github.base_ref }}:pyproject.toml" 2>/dev/null; then
             base_version="$(git show "origin/${{ github.base_ref }}:pyproject.toml" | read_version)"
+          fi
 
+          if [ -n "$base_version" ]; then
             if [ "$head_version" = "$base_version" ]; then
               echo "::error file=pyproject.toml::This PR does not bump the version. pyproject.toml still declares ${head_version}, the same as ${{ github.base_ref }}. Merging cuts a release, so [project] version must be raised to a value that has not been tagged."
               exit 1
@@ -58,7 +75,7 @@ jobs:
 
             echo "Version bumped ${base_version} -> ${head_version}."
           else
-            echo "::notice::${{ github.base_ref }} has no pyproject.toml, so this PR introduces the packaging metadata. No base version to compare against; checking only that the tag is free."
+            echo "::notice::${{ github.base_ref }} declares no version, so this PR introduces the packaging metadata. No base version to compare against; checking only that the tag is free."
           fi
 
           tag="${TAG_PREFIX}${head_version}"
