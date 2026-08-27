@@ -1,75 +1,19 @@
 name: "Release"
 
-# On merge to master, tag the declared version and publish a GitHub release,
-# so the tag is a product of the merge rather than a manual step. See ADR-0035.
+# Thin caller. The implementation lives in plentific/github-actions so that a
+# fix lands once rather than in every library repository. See ADR-0035.
 
 on:
   push:
     branches:
       - master
 
+# A called workflow can only narrow these, never widen them, so the write
+# access the release needs has to be granted here.
 permissions:
   contents: write
 
-env:
-  # Tag names in this repository are the declared version with this prefix.
-  TAG_PREFIX: ""
-
 jobs:
-  tag-and-release:
-    name: Tag and release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Tag the declared version and publish a release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-
-          version="$(python3 -c '
-          import sys, tomllib
-          try:
-              print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])
-          except (KeyError, tomllib.TOMLDecodeError):
-              pass
-          ')"
-
-          if [ -z "$version" ]; then
-            echo "::error file=pyproject.toml::pyproject.toml declares no [project] version, so there is nothing to release."
-            exit 1
-          fi
-
-          tag="${TAG_PREFIX}${version}"
-
-          # Nothing to do if the release is already published. Checking the
-          # release rather than the tag is what makes this job idempotent: a
-          # re-run after a half-finished attempt finishes the job instead of
-          # skipping it.
-          if gh release view "${tag}" >/dev/null 2>&1; then
-            echo "::notice::Release ${tag} is already published. Nothing to do."
-            exit 0
-          fi
-
-          # The tag may exist without a release, either because a previous run
-          # failed between the two or because someone cut it by hand. Resolve
-          # what it points at, dereferencing an annotated tag to its commit.
-          peeled="$(git ls-remote origin "refs/tags/${tag}^{}" | awk '{print $1}')"
-          raw="$(git ls-remote origin "refs/tags/${tag}" | awk '{print $1}')"
-          tag_sha="${peeled:-$raw}"
-
-          if [ -n "$tag_sha" ] && [ "$tag_sha" != "$GITHUB_SHA" ]; then
-            echo "::warning::Tag ${tag} already exists and points at ${tag_sha}, not this commit, so this push cut no release. That means a commit reached master without bumping the version."
-            exit 0
-          fi
-
-          # One call creates the tag when it is missing and publishes the
-          # release either way, so there is no window in which a tag exists
-          # without its release.
-          gh release create "${tag}" \
-            --target "${GITHUB_SHA}" \
-            --title "${tag}" \
-            --generate-notes
-
-          echo "Released ${tag}."
+  release:
+    # TODO before merge: repin to the tag cut from plentific/github-actions#1.
+    uses: plentific/github-actions/.github/workflows/backend_libraries_release.yml@rse/backend-libraries-workflows
