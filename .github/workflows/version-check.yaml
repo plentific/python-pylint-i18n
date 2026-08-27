@@ -14,5 +14,10 @@ on:
 
 jobs:
   version-check:
-    # TODO before merge: repin to the tag cut from plentific/github-actions#1.
-    uses: plentific/github-actions/.github/workflows/backend_libraries_version_check.yml@rse/backend-libraries-workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # TODO before merge: repin to the tag cut from plentific/github-actions#1.
+      - uses: plentific/github-actions/actions/backend_libraries/version_check@rse/backend-libraries-workflows

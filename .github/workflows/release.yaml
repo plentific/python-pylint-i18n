@@ -8,12 +8,13 @@ on:
     branches:
       - master
 
-# A called workflow can only narrow these, never widen them, so the write
-# access the release needs has to be granted here.
 permissions:
   contents: write
 
 jobs:
   release:
-    # TODO before merge: repin to the tag cut from plentific/github-actions#1.
-    uses: plentific/github-actions/.github/workflows/backend_libraries_release.yml@rse/backend-libraries-workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # TODO before merge: repin to the tag cut from plentific/github-actions#1.
+      - uses: plentific/github-actions/actions/backend_libraries/release@rse/backend-libraries-workflows
