@@ -1,7 +1,7 @@
 name: "Release"
 
 # NOTE: this repository keeps its own copy of this workflow rather than calling
-# the shared action in plentific/github-actions. GitHub does not let a public
+# the shared action in plentific/github-workflows. GitHub does not let a public
 # repository use actions from a private or internal one, and this repository is
 # public because it is a fork of LeoIannacone/python-pylint-i18n. The other
 # eight libraries are private and call the shared action.
