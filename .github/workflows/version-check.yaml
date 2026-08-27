@@ -1,0 +1,93 @@
+name: "Version check"
+
+# NOTE: this repository keeps its own copy of this workflow rather than calling
+# the shared action in plentific/github-workflows. GitHub does not let a public
+# repository use actions from a private or internal one, and this repository is
+# public because it is a fork of LeoIannacone/python-pylint-i18n. The other
+# eight libraries are private and call the shared action.
+
+# Every PR to master cuts a release, so every PR must bump [project] version
+# to a value that has never been tagged. See ADR-0035.
+
+on:
+  pull_request:
+    branches:
+      - master
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+env:
+  # Tag names in this repository are the declared version with this prefix.
+  TAG_PREFIX: ""
+
+jobs:
+  version-bumped:
+    name: Version bumped to an unused version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compare the declared version against the base branch
+        run: |
+          set -euo pipefail
+
+          pip install --quiet packaging
+
+          # Prints the declared version, or nothing when the file has no
+          # [project] table (a repository not yet migrated).
+          read_version() {
+            python3 -c '
+          import sys, tomllib
+          try:
+              print(tomllib.loads(sys.stdin.read())["project"]["version"])
+          except (KeyError, tomllib.TOMLDecodeError):
+              pass
+          '
+          }
+
+          head_version="$(read_version < pyproject.toml)"
+
+          if [ -z "$head_version" ]; then
+            echo "::error file=pyproject.toml::pyproject.toml declares no [project] version."
+            exit 1
+          fi
+
+          # A PR that introduces the packaging metadata has no base version to
+          # compare against, either because the base branch has no
+          # pyproject.toml or because its one carries only tool config.
+          base_version=""
+          if git cat-file -e "origin/${{ github.base_ref }}:pyproject.toml" 2>/dev/null; then
+            base_version="$(git show "origin/${{ github.base_ref }}:pyproject.toml" | read_version)"
+          fi
+
+          if [ -n "$base_version" ]; then
+            if [ "$head_version" = "$base_version" ]; then
+              echo "::error file=pyproject.toml::This PR does not bump the version. pyproject.toml still declares ${head_version}, the same as ${{ github.base_ref }}. Merging cuts a release, so [project] version must be raised to a value that has not been tagged."
+              exit 1
+            fi
+
+            if ! python3 -c "
+          from packaging.version import Version
+          import sys
+          sys.exit(0 if Version('${head_version}') > Version('${base_version}') else 1)
+          "; then
+              echo "::error file=pyproject.toml::Version ${head_version} is not higher than ${base_version} on ${{ github.base_ref }}. Releases only move forward."
+              exit 1
+            fi
+
+            echo "Version bumped ${base_version} -> ${head_version}."
+          else
+            echo "::notice::${{ github.base_ref }} declares no version, so this PR introduces the packaging metadata. No base version to compare against; checking only that the tag is free."
+          fi
+
+          tag="${TAG_PREFIX}${head_version}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "::error file=pyproject.toml::Tag ${tag} already exists. Pick a version that has not been released."
+            exit 1
+          fi
+
+          echo "Tag ${tag} is free and will be created on merge."
